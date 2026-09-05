@@ -6,8 +6,14 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+      # Читаются только init-скриптом при первой инициализации кластера.
+      METABASE_RO_PASSWORD: ${METABASE_RO_PASSWORD}
+      METABASE_DB_NAME: ${METABASE_DB_NAME:-metabase_app}
+      METABASE_DB_USER: ${METABASE_DB_USER:-metabase_app}
+      METABASE_DB_PASSWORD: ${METABASE_DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
@@ -25,6 +31,15 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       SECRET_KEY: ${SECRET_KEY}
       CORS_ORIGINS: ${CORS_ORIGINS}
+      # Metabase отдаётся под тем же доменом (Caddy, /metabase), поэтому
+      # iframe получается same-origin: без CORS и без сторонних кук.
+      METABASE_SITE_URL: ${ORIGIN}/metabase
+      # Тем же секретом Metabase проверяет подпись embed-токена.
+      METABASE_EMBEDDING_SECRET_KEY: ${METABASE_EMBEDDING_SECRET_KEY}
+      # Номера появляются после scripts/metabase_seed.py — он их печатает.
+      METABASE_DASHBOARD_FUNNEL: ${METABASE_DASHBOARD_FUNNEL:-0}
+      METABASE_DASHBOARD_OOPT: ${METABASE_DASHBOARD_OOPT:-0}
+      METABASE_DASHBOARD_IMPACT: ${METABASE_DASHBOARD_IMPACT:-0}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 15s
@@ -41,6 +56,34 @@ services:
       PORT: 3000
       ORIGIN: ${ORIGIN}
 
+  metabase:
+    image: metabase/metabase:v0.50.26
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Своя app-БД в том же кластере: поднимать второй постгрес ради BI незачем.
+      MB_DB_TYPE: postgres
+      MB_DB_HOST: postgres
+      MB_DB_PORT: 5432
+      MB_DB_DBNAME: ${METABASE_DB_NAME:-metabase_app}
+      MB_DB_USER: ${METABASE_DB_USER:-metabase_app}
+      MB_DB_PASS: ${METABASE_DB_PASSWORD}
+      # Путь в site-url обязателен: без него Metabase генерит ссылки от корня
+      # и за префиксом /metabase ломается статика.
+      MB_SITE_URL: ${ORIGIN}/metabase
+      MB_ENABLE_EMBEDDING: "true"
+      MB_EMBEDDING_SECRET_KEY: ${METABASE_EMBEDDING_SECRET_KEY}
+      JAVA_TIMEZONE: ${TZ:-Europe/Moscow}
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "-I", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      # Первый старт накатывает свои миграции в metabase_app — это долго.
+      start_period: 180s
+      retries: 5
+
   proxy:
     image: caddy:2-alpine
     restart: unless-stopped
@@ -56,6 +99,7 @@ services:
     depends_on:
       - backend
       - frontend
+      - metabase
 
 volumes:
   postgres_data:

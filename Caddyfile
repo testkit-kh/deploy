@@ -10,6 +10,12 @@ handle /api/* {
 	reverse_proxy backend:8000
 }
 
+# BI под тем же доменом: iframe дашборда получается same-origin.
+# Metabase знает про префикс из MB_SITE_URL, поэтому путь не срезаем.
+handle /metabase* {
+	reverse_proxy metabase:3000
+}
+
 handle {
 	reverse_proxy frontend:3000
 }
