@@ -44,4 +44,8 @@ jobs:
             cd ${{ env.DEPLOY_PATH }}
             docker compose pull
             docker compose up -d
+            # up -d only recreates containers when the compose service definition
+            # changes; a Caddyfile content-only edit needs an explicit restart to
+            # actually take effect (bind mounts aren't hashed).
+            docker compose restart proxy
             docker image prune -f

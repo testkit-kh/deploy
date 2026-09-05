@@ -11,8 +11,12 @@ handle /api/* {
 }
 
 # BI под тем же доменом: iframe дашборда получается same-origin.
-# Metabase знает про префикс из MB_SITE_URL, поэтому путь не срезаем.
-handle /metabase* {
+# Caddy срезает префикс /metabase — сам Metabase не умеет матчить свои
+# внутренние роуты (/app/dist/*, /api/*) с префиксом, только генерит
+# ссылки под него через MB_SITE_URL (base href и т.п.).
+redir /metabase /metabase/ permanent
+
+handle_path /metabase/* {
 	reverse_proxy metabase:3000
 }
 
