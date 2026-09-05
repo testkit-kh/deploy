@@ -40,8 +40,22 @@ services:
       METABASE_DASHBOARD_FUNNEL: ${METABASE_DASHBOARD_FUNNEL:-0}
       METABASE_DASHBOARD_OOPT: ${METABASE_DASHBOARD_OOPT:-0}
       METABASE_DASHBOARD_IMPACT: ${METABASE_DASHBOARD_IMPACT:-0}
+      TITILER_PUBLIC_URL: ${TITILER_PUBLIC_URL}
+      STAC_API_URL: ${STAC_API_URL}
+      STAC_COLLECTION: ${STAC_COLLECTION:-sentinel-2-l2a}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  titiler:
+    image: ghcr.io/developmentseed/titiler:2.2.1
+    restart: unless-stopped
+    environment:
+      PORT: 8000
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -100,6 +114,7 @@ services:
       - backend
       - frontend
       - metabase
+      - titiler
 
 volumes:
   postgres_data:

@@ -20,6 +20,11 @@ handle_path /metabase/* {
 	reverse_proxy metabase:3000
 }
 
+handle /titiler/* {
+	uri strip_prefix /titiler
+	reverse_proxy titiler:8000
+}
+
 handle {
 	reverse_proxy frontend:3000
 }
